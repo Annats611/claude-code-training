@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
 import { Payment } from "@/data/types"
-import { EXPORT_COLUMNS, exportFilename, toCsv } from "./csv"
+import {
+  DEFAULT_EXPORT_COLUMNS,
+  EXPORT_COLUMNS,
+  exportFilename,
+  parseExportColumns,
+  toCsv,
+} from "./csv"
 
 /**
  * The export is the file ops hands to a merchant, so a broken cell is a
@@ -76,10 +82,42 @@ describe("toCsv", () => {
   })
 })
 
+describe("parseExportColumns", () => {
+  it("keeps only a subset of columns, in the order requested", () => {
+    expect(parseExportColumns("amount,id")).toEqual(["amount", "id"])
+  })
+
+  it("excludes last4 by default", () => {
+    expect(DEFAULT_EXPORT_COLUMNS).not.toContain("last4")
+    expect(DEFAULT_EXPORT_COLUMNS).toEqual(
+      EXPORT_COLUMNS.filter((column) => column !== "last4"),
+    )
+  })
+
+  it("drops unrecognized and duplicate names rather than passing them through", () => {
+    expect(parseExportColumns("id,ssn,id,amount")).toEqual(["id", "amount"])
+  })
+
+  it("returns an empty list for an explicit empty selection, rather than falling back to the default", () => {
+    expect(parseExportColumns("")).toEqual([])
+    expect(parseExportColumns("  ,  ")).toEqual([])
+  })
+
+  it("returns null when no selection was made at all, so the caller can apply the default", () => {
+    expect(parseExportColumns(null)).toBeNull()
+  })
+})
+
 describe("exportFilename", () => {
   it("stamps the UTC date, so two exports on the same day collide by design", () => {
-    expect(exportFilename(new Date("2026-03-14T23:00:00.000Z"))).toBe(
-      "payments-2026-03-14.csv",
+    expect(exportFilename("all", new Date("2026-03-14T23:00:00.000Z"))).toBe(
+      "payments-all-2026-03-14.csv",
     )
+  })
+
+  it("carries the scope label into the filename", () => {
+    expect(
+      exportFilename("disputed", new Date("2026-08-13T12:00:00.000Z")),
+    ).toBe("payments-disputed-2026-08-13.csv")
   })
 })
